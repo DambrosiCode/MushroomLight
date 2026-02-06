@@ -1,0 +1,50 @@
+/*
+ * Created by ArduinoGetStarted.com
+ *
+ * This example code is in the public domain
+ *
+ * Tutorial page: https://arduinogetstarted.com/tutorials/arduino-neopixel-led-strip
+ */
+
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+#include <avr/power.h>  // Required for 16 MHz Adafruit Trinket
+#endif
+
+#define PIN_NEO_PIXEL_L 6  // Arduino pin that connects to NeoPixel
+#define NUM_PIXELS_L 12    // The number of LEDs (pixels) on NeoPixel
+
+#define PIN_NEO_PIXEL_S 7  // Arduino pin that connects to NeoPixel
+#define NUM_PIXELS_S 7    // The number of LEDs (pixels) on NeoPixel
+
+#define DELAY_INTERVAL 250  // 250ms pause between each pixel
+
+int health = 7;
+
+Adafruit_NeoPixel NeoPixel_L(NUM_PIXELS_L, PIN_NEO_PIXEL_L, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel NeoPixel_S(NUM_PIXELS_S, PIN_NEO_PIXEL_S, NEO_GRB + NEO_KHZ800);
+
+void setup() {
+  NeoPixel_L.begin();  // INITIALIZE NeoPixel strip object (REQUIRED)
+  NeoPixel_S.begin();  // INITIALIZE NeoPixel strip object (REQUIRED)
+  Serial.begin(9600);
+}
+
+
+void loop() {
+  if (Serial.available()) {
+    health = Serial.parseInt();
+    if (health != 0) {
+      Serial.print("Health remaining: " );
+      Serial.println(health);
+      NeoPixel_S.clear();
+      for (int pixel = 0; pixel < health; pixel++) { 
+        NeoPixel_S.setPixelColor(pixel, NeoPixel_S.Color(255, 0, 0));
+      }
+      for (int pixel = 7-health; pixel < health; pixel++) { 
+        NeoPixel_S.setPixelColor(pixel, NeoPixel_S.Color(0, 255, 0));
+      }
+      NeoPixel_S.show();
+    }
+  }
+}
