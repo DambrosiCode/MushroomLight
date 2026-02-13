@@ -36,10 +36,16 @@ void setup() {
 
 void loop() {
 
+  if(health == 99){
+      colorWipe(NeoPixel_S.Color(0 ,0, 256),50, 5);
+    }
 
   if (health < 0){
     // set dead
     NeoPixel_S.clear();
+    for (int pixel = 12; pixel < health+12; pixel++) { 
+          NeoPixel_S.setPixelColor(pixel, NeoPixel_S.Color(0, 0, 0));
+        }
   }else{
     //set health bar
     if (Serial.available()) {
@@ -69,5 +75,45 @@ void colorWipe(uint32_t color, int wait, int l) {
     NeoPixel_S.setPixelColor(i, color);         //  Set pixel's color (in RAM)
     NeoPixel_S.show();
     delay(wait);                           //  Pause for a moment
+  }
+}
+void whiteOverRainbow(int whiteSpeed, int whiteLength) {
+
+  if(whiteLength >= NeoPixel_S.numPixels()) whiteLength = NeoPixel_S.numPixels() - 1;
+
+  int      head          = whiteLength - 1;
+  int      tail          = 0;
+  int      loops         = 3;
+  int      loopNum       = 0;
+  uint32_t lastTime      = millis();
+  uint32_t firstPixelHue = 0;
+
+  for(;;) { // Repeat forever (or until a 'break' or 'return')
+    for(int i=0; i<NeoPixel_S.numPixels(); i++) {  // For each pixel in strip...
+      if(((i >= tail) && (i <= head)) ||      //  If between head & tail...
+         ((tail > head) && ((i >= tail) || (i <= head)))) {
+        NeoPixel_S.setPixelColor(i, NeoPixel_S.Color(0, 0, 0, 255)); // Set white
+      } else {                                             // else set rainbow
+        int pixelHue = firstPixelHue + (i * 65536L / NeoPixel_S.numPixels());
+        NeoPixel_S.setPixelColor(i, NeoPixel_S.gamma32(NeoPixel_S.ColorHSV(pixelHue)));
+      }
+    }
+
+    NeoPixel_S.show(); // Update strip with new contents
+    // There's no delay here, it just runs full-tilt until the timer and
+    // counter combination below runs out.
+
+    firstPixelHue += 40; // Advance just a little along the color wheel
+
+    if((millis() - lastTime) > whiteSpeed) { // Time to update head/tail?
+      if(++head >= NeoPixel_S.numPixels()) {      // Advance head, wrap around
+        head = 0;
+        if(++loopNum >= loops) return;
+      }
+      if(++tail >= NeoPixel_S.numPixels()) {      // Advance tail, wrap around
+        tail = 0;
+      }
+      lastTime = millis();                   // Save time of last movement
+    }
   }
 }
