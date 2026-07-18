@@ -19,11 +19,19 @@ class Raver:
         self.samplerate = None
         self.arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=9600, timeout=.1)
 
+        self.positions = {}  # song -> seconds
+        self.current_song = None
+        self.start_time = None
+
     def set_song(self, song):
         # Play music
         self.data, self.samplerate = sf.read(song)
 
     def stop_music(self):
+        if self.current_song and self.start_time:
+            elapsed = time.perf_counter() - self.start_time
+            self.positions[self.current_song] = elapsed
+
         self.stop_event.set()
         sd.stop()
 
@@ -31,9 +39,11 @@ class Raver:
         self.stop_music()  # stop previous song
         self.stop_event.clear()
 
+        offset = self.positions.get(song, 0)
+
         self.thread = threading.Thread(
             target=self._play_worker,
-            args=(song,),
+            args=(song, offset),
             daemon=True,
         )
         self.thread.start()
@@ -44,7 +54,7 @@ class Raver:
     def set_rainbow(self, brightness, mode):
         self.arduino.write(f"{brightness},{mode},{0},{0},{0}\n".encode())
 
-    def _play_worker(self, song):
+    def _play_worker(self, song, offset=0):
         print(f"starting {song}")
         f_name = song.replace(".wav", ".txt")
         peak_times = []
@@ -52,7 +62,7 @@ class Raver:
         if not os.path.exists(f_name):
             print(f'generating {f_name}')
             # Load your audio file (downmixes to mono and resamples to 22.05kHz by default)
-            y, sr = librosa.load(song, sr=None)
+            y, sr = librosa.load(song)
 
             # Estimate tempo (BPM) and get the beat frame locations
             tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
@@ -76,25 +86,33 @@ class Raver:
             with open(f_name, 'r') as f:
                 peak_times = [float(line) for line in f.read().splitlines()]
 
-
-
         self.set_song(song)
+
         data = self.data
         samplerate = self.samplerate
 
-        # Give the audio thread time to actually begin
-        start = time.perf_counter()
+        start_sample = int(offset * samplerate)
+        data = data[start_sample:]
+
+        self.current_song = song
+        self.start_time = time.perf_counter() - offset
+
         sd.play(data, samplerate)
 
-        beat_count = 0
+        # Give the audio thread time to actually begin
+        start = time.perf_counter() - offset
+        sd.play(data, samplerate)
+        import bisect
 
-        off_beat = 0
+        beat_count = bisect.bisect_left(peak_times, offset)
+
+        off_beat = 1
         off_beat_count = 0
 
         while sd.get_stream().active and not self.stop_event.is_set():
             elapsed = time.perf_counter() - start
             while beat_count < len(peak_times) and elapsed >= peak_times[beat_count]:
-                mode = random.choice(['RGB', 'RAINBOW'])
+                mode = random.choice(['RGB'])
                 #send on data to arduino/neopixel
                 if off_beat_count == off_beat and off_beat != 0:
                     brightness = 0
